@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HAND DASH - Geometry Dash</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#fff;font-family:Arial;overflow:hidden;text-align:center}
+#top{padding:8px;background:#111}
+h1{font-size:22px;letter-spacing:2px} h1 span{color:#00e5ff}
+p{font-size:12px;color:#aaa}
+#wrap{position:relative;width:100%;max-width:700px;margin:8px auto}
+video{width:140px;height:105px;position:absolute;top:8px;right:8px;z-index:10;border:2px solid #00e5ff;border-radius:10px;transform:scaleX(-1);object-fit:cover}
+#game{width:100%;max-width:700px;height:320px;margin:auto;background:linear-gradient(#0a0a2e,#1a0033);position:relative;overflow:hidden;border:3px solid #00e5ff;border-radius:10px}
+#ground{position:absolute;bottom:0;left:0;width:100%;height:50px;background:#111;border-top:3px solid #00e5ff;z-index:1}
+.grid{position:absolute;bottom:50px;width:100%;height:270px;background-image:linear-gradient(rgba(0,229,255,.15) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.15) 1px,transparent 1px);background-size:40px 40px}
+#player{position:absolute;left:90px;bottom:50px;width:38px;height:38px;background:#ffff00;border:3px solid #000;z-index:5;transition:transform .1s}
+#player::before{content:"";position:absolute;left:6px;top:8px;width:8px;height:8px;background:#000;border-radius:50%;box-shadow:16px 0 0 #000}
+#player::after{content:"";position:absolute;left:5px;bottom:5px;width:28px;height:6px;background:#000;border-radius:3px}
+.obs{position:absolute;bottom:50px;z-index:4}
+.spike{width:0;height:0;border-left:18px solid transparent;border-right:18px solid transparent;border-bottom:38px solid #fff}
+.block{width:38px;height:38px;background:#00e5ff;border:2px solid #fff}
+.double{width:38px;height:76px;background:#ff00aa;border:2px solid #fff}
+#progress{width:100%;max-width:700px;height:10px;background:#222;margin:8px auto;border-radius:5px;overflow:hidden}
+#bar{height:100%;width:0%;background:linear-gradient(90deg,#00e5ff,#ffff00)}
+button{background:#00e5ff;color:#000;border:none;padding:12px 28px;border-radius:20px;font-weight:bold;font-size:16px;margin:8px;cursor:pointer}
+#score{font-size:16px;font-weight:bold}
+#msg{font-size:18px;font-weight:bold;color:#ffff00;margin:4px;min-height:24px}
+</style>
+</head>
+<body>
+<div id="top"><h1>⚡ HAND <span>DASH</span> ⚡</h1><p>GEOMETRY DASH STYLE - Open Palm ✋ = JUMP | Fist ✊ = Stay | Move hand to control</p></div>
+<div id="wrap"><video id="video" autoplay playsinline muted></video></div>
+<div id="score">Score: 0 | Best: 0 | Attempts: 1</div>
+<div id="msg">Click START, Allow Camera, Show Hand!</div>
+<button onclick="startGame()">▶ PLAY</button>
+<button onclick="location.reload()" style="background:#ff0055;color:white">↻ RESTART</button>
+<div id="game"><div class="grid"></div><div id="player"></div><div id="ground"></div></div>
+<div id="progress"><div id="bar"></div></div>
+<p style="font-size:11px;color:#888">Tip: Keep hand in camera. Open palm to jump over spikes. Don't touch spikes!</p>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script>
+let video=document.getElementById('video'),game=document.getElementById('game'),player=document.getElementById('player'),bar=document.getElementById('bar'),msg=document.getElementById('msg'),scoreEl=document.getElementById('score');
+let playing=false,score=0,best=localStorage.getItem('hd_best')||0,attempts=1,playerY=50,vy=0,gravity=1.2,jumpPower=-16,groundY=50,onGround=true,rotation=0,obstacles=[],spawnTimer=0,speed=5,lastJump=0,progress=0;
+best=parseInt(best); updateScore();
+function updateScore(){scoreEl.innerText=`Score: ${score} | Best: ${best} | Attempts: ${attempts}`}
+
+function startGame(){
+  playing=true; score=0; progress=0; obstacles.forEach(o=>o.el.remove()); obstacles=[]; playerY=50; vy=0; attempts++;
+  msg.innerText="🔥 PLAYING... Jump the spikes!";
+  updateScore();
+  let hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+  hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+  hands.onResults(r=>{
+    if(r.multiHandLandmarks && r.multiHandLandmarks.length>0){
+      let lm=r.multiHandLandmarks[0];
+      let open = lm[8].y < lm[6].y && lm[12].y < lm[10].y;
+      if(open && onGround && Date.now()-lastJump>300){ lastJump=Date.now(); vy=jumpPower; onGround=false; msg.innerText="✋ JUMP!"; }
+      else if(!open){ msg.innerText="✊ Ready... Open Palm to Jump"; }
+    }
+  });
+  new Camera(video,{onFrame:async()=>{await hands.send({image:video})},width:320,height:240}).start();
+}
+function spawnObs(){
+  let type=Math.random();
+  let el=document.createElement('div'); el.className='obs';
+  if(type<0.45){ el.classList.add('spike'); el.style.left='700px'; }
+  else if(type<0.75){ el.classList.add('block'); el.style.left='700px'; }
+  else{ el.classList.add('spike'); el.style.left='700px'; let el2=document.createElement('div'); el2.className='obs spike'; el2.style.left='740px'; game.appendChild(el2); obstacles.push({el:el2,x:740,w:36,h:38}); }
+  game.appendChild(el);
+  obstacles.push({el:el,x:700,w:36,h:38});
+}
+setInterval(()=>{
+  if(!playing) return;
+  // physics
+  vy+=gravity; playerY+=vy;
+  if(playerY<=groundY){ playerY=groundY; vy=0; onGround=true; rotation=0; } else { rotation+=12; }
+  player.style.bottom=playerY+'px';
+  player.style.transform=`rotate(${rotation}deg)`;
+  // spawn
+  spawnTimer++; if(spawnTimer>55){ spawnTimer=0; spawnObs(); if(score>200) speed=6; if(score>500) speed=7; }
+  // move obstacles
+  for(let i=obstacles.length-1;i>=0;i--){
+    let o=obstacles[i]; o.x-=speed; o.el.style.left=o.x+'px';
+    if(o.x<-50){ o.el.remove(); obstacles.splice(i,1); score+=5; progress+=1; bar.style.width=Math.min(progress/2,100)+'%'; updateScore(); continue; }
+    // collision - cube at 90-128, bottom playerY to playerY+38
+    if(o.x<128 && o.x+o.w>90 && playerY < 88 && playerY+38 > 50){
+      // die
+      playing=false; if(score>best){best=score; localStorage.setItem('hd_best',best);}
+      msg.innerText=`💥 CRASHED! Score: ${score} - Click PLAY Again`;
+      player.style.background='#ff0000';
+      setTimeout(()=>{player.style.background='#ffff00';},800);
+      updateScore(); return;
+    }
+  }
+},20);
+// Keyboard also works - Space to jump
+document.addEventListener('keydown',e=>{ if(e.code==='Space' && playing && onGround){ vy=jumpPower; onGround=false; }});
+</script>
+</body>
+</html>
